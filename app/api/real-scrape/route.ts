@@ -1,4 +1,5 @@
 import axios from "axios";
+import fs from "fs";
 import { Agent as HttpAgent } from "http";
 import { Agent as HttpsAgent } from "https";
 import { NextRequest, NextResponse } from "next/server";
@@ -120,6 +121,11 @@ async function parseLeadFromMarkdown(markdown: string, url: string): Promise<Par
 
   const raw = completion.choices[0]?.message?.content || "{}";
   
+  // Debug output
+  try {
+    fs.appendFileSync("debug_ai_raw.txt", `\n--- START RAW ---\n${raw}\n--- END RAW ---\n`);
+  } catch {}
+
   // More robust JSON extraction
   let jsonStr = raw;
   const jsonBlockMatch = raw.match(/```json\n([\s\S]*?)\n```/) || raw.match(/```([\s\S]*?)```/);
@@ -132,7 +138,7 @@ async function parseLeadFromMarkdown(markdown: string, url: string): Promise<Par
 
   try {
     return JSON.parse(jsonStr) as ParsedLead;
-  } catch (err) {
+  } catch {
     console.error("Failed to parse AI JSON:", jsonStr.slice(0, 100));
     return null;
   }
@@ -182,7 +188,10 @@ export async function POST(request: NextRequest) {
     // Step 2: Scrape each LinkedIn page via ZenRows (limit to 3 for better stability and speed)
     const scrapeTargets = urls.slice(0, 3);
     const scrapedPages = await Promise.allSettled(
-      scrapeTargets.map((url) => scrapeLinkedInPage(url))
+      scrapeTargets.map(async (url, i) => {
+        if (i > 0) await new Promise((r) => setTimeout(r, i * 1500)); // Stagger requests
+        return scrapeLinkedInPage(url);
+      })
     );
 
     // Step 3: Parse each scraped page with AI
