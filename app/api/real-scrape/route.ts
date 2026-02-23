@@ -119,12 +119,21 @@ async function parseLeadFromMarkdown(markdown: string, url: string): Promise<Par
   });
 
   const raw = completion.choices[0]?.message?.content || "{}";
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
+  
+  // More robust JSON extraction
+  let jsonStr = raw;
+  const jsonBlockMatch = raw.match(/```json\n([\s\S]*?)\n```/) || raw.match(/```([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    jsonStr = jsonBlockMatch[1];
+  } else {
+    const braceMatch = raw.match(/\{[\s\S]*\}/);
+    if (braceMatch) jsonStr = braceMatch[0];
+  }
 
   try {
-    return JSON.parse(jsonMatch[0]) as ParsedLead;
-  } catch {
+    return JSON.parse(jsonStr) as ParsedLead;
+  } catch (err) {
+    console.error("Failed to parse AI JSON:", jsonStr.slice(0, 100));
     return null;
   }
 }
